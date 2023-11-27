@@ -26,13 +26,13 @@ routeTable=$(aws ec2 create-route-table --vpc-id "$VPC" --query RouteTable.Route
 aws ec2 create-route --route-table-id "$routeTable" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway"
 
 # Apply route table to subnet0
-aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$routeTable"
+aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$routeTable" --query 'AssociationState.State' --output text
 
 # Apply route table to subnet1
-aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$routeTable"
+aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$routeTable" --query 'AssociationState.State' --output text
 
 # Apply route table to subnet2
-aws ec2 associate-route-table --subnet-id "$subnet2" --route-table-id "$routeTable"
+aws ec2 associate-route-table --subnet-id "$subnet2" --route-table-id "$routeTable" --query 'AssociationState.State' --output text
 
 # Obtain public IP address on launch
 aws ec2 modify-subnet-attribute --subnet-id "$subnet0" --map-public-ip-on-launch
@@ -61,12 +61,7 @@ ec2ID=$(aws ec2 run-instances --image-id ami-0b0dcb5067f052a63 --count 1 --insta
 # Determine public IP address of EC2 instance
 publicIP=$(aws ec2 describe-instances --instance-ids "$ec2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
 
-echo "VPC is $VPC"
-echo "Subnet0 is $subnet0"
-echo "Public IP address is $publicIP"
-
-
 greenText='\033[0;32m'
 NC='\033[0m' # No Color
 echo "Connect using the command below"
-echo -e "${greenText}\t\t ssh -i .ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP ${NC}\n"
