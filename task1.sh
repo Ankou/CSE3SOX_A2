@@ -23,7 +23,7 @@ aws ec2 attach-internet-gateway --vpc-id "$VPC" --internet-gateway-id "$internet
 routeTable=$(aws ec2 create-route-table --vpc-id "$VPC" --query RouteTable.RouteTableId --output text)
 
 # Create default route to Internet Gateway
-aws ec2 create-route --route-table-id "$routeTable" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway"
+aws ec2 create-route --route-table-id "$routeTable" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway" --query 'Return' --output text
 
 # Apply route table to subnet0
 aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$routeTable" --query 'AssociationState.State' --output text
@@ -52,8 +52,9 @@ chmod 400 ~/.ssh/CSE3SOX-A2-key-pair.pem
 # Create Security Group
 webAppSG=$(aws ec2 create-security-group --group-name webApp-sg --description "Security group for A2 Web Application" --vpc-id "$VPC" --query 'GroupId' --output text)
 
-# Allow SSH
+# Allow SSH and http traffic
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 22 --cidr 0.0.0.0/0 --query 'Return' --output text
+aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 80 --cidr 0.0.0.0/0 --query 'Return' --output text
 
 # Create EC2 Instance
 ec2ID=$(aws ec2 run-instances --image-id ami-0b0dcb5067f052a63 --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --query Instances[].InstanceId --output text)
