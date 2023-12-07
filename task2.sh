@@ -51,24 +51,30 @@ aws ec2 create-key-pair --key-name CSE3SOX-A2-key-pair --query 'KeyMaterial' --o
 # Change permissions of Key Pair
 chmod 400 ~/.ssh/CSE3SOX-A2-key-pair.pem
 
-# Create Security Group
-webAppSG=$(aws ec2 create-security-group --group-name webApp-sg --description "Security group for A2 Web Application" --vpc-id "$VPC" --query 'GroupId' --output text)
+# Create Security Group for public host
+webAppSG=$(aws ec2 create-security-group --group-name webApp-sg --description "Security group for host in public subnet" --vpc-id "$VPC" --query 'GroupId' --output text)
+
+# Create Security Group for private host
+privateHostSG=$(aws ec2 create-security-group --group-name privateHost-sg --description "Security group for host in private subnet" --vpc-id "$VPC" --query 'GroupId' --output text)
 
 # Allow SSH and http traffic
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 22 --cidr 0.0.0.0/0 --query 'Return' --output text
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 80 --cidr 0.0.0.0/0 --query 'Return' --output text
 
+# Allow SSH from private host
+aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 22 --source-group "$webAppSG"  --query 'Return' --output text
+
 # Create EC2 Instance in public subnet - Uses golden image created in task 1
-pubEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --query Instances[].InstanceId --output text)
+pubEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --user-data 'systemctl disable mariadb' --query Instances[].InstanceId --output text)
 
 # Create EC2 Instance in private subnet - Uses golden image created in task 1
-privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --subnet-id "$subnet1" --query Instances[].InstanceId --output text)
+privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --user-data 'systemctl disable httpd' --query Instances[].InstanceId --output text)
 
 # Determine public IP address of EC2 instance
 publicIP=$(aws ec2 describe-instances --instance-ids "$pubEC2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
 
 # Determine private IP address of EC2 instance
-privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
+privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reservations[].Instances[].PrivateIpAddress  --output text)
 
 # Script complete message
 greenText='\033[0;32m'
