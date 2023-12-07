@@ -6,3 +6,6 @@ systemctl disable mariadb
 
 # Update the validation.php file
 sed -i 's/localhost/172.16.1.82/g' /var/www/html/validation.php 
+
+# Update permissions on SSH key
+chmod 400 .ssh/CSE3SOX-A2-key-pair.pem 

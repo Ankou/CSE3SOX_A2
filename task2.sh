@@ -63,12 +63,13 @@ aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp -
 
 # Allow SSH from private host
 aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 22 --source-group "$webAppSG"  --query 'Return' --output text
+aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 3306 --source-group "$webAppSG"  --query 'Return' --output text
 
 # Create EC2 Instance in public subnet - Uses golden image created in task 1
-pubEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --user-data 'systemctl disable mariadb' --query Instances[].InstanceId --output text)
+pubEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --query Instances[].InstanceId --output text)
 
 # Create EC2 Instance in private subnet - Uses golden image created in task 1
-privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --user-data 'systemctl disable httpd' --query Instances[].InstanceId --output text)
+privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --query Instances[].InstanceId --output text)
 
 # Determine public IP address of EC2 instance
 publicIP=$(aws ec2 describe-instances --instance-ids "$pubEC2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
