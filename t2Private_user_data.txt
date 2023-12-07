@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Switch to root
+sudo su -
+
 # Disable httpd service
 systemctl stop httpd
 systemctl disable httpd
