@@ -6,7 +6,7 @@ logFile=~/$0-$runDate
 echo "Script Starting @ $runDate" > $logFile
 
 # Create VPC
-VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=Task2VPC}]' --query Vpc.VpcId --output text)
+VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=Task3VPC}]' --query Vpc.VpcId --output text)
 
 # Create subnets in the new VPC
 subnet0=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.0.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet0 Public}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
@@ -22,7 +22,7 @@ aws ec2 create-tags --resources $PubRouteTable --tags 'Key=Name,Value=Public rou
 PrivRouteTable=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table}]' --query RouteTable.RouteTableId --output text)
 
 # Create Internet Gateway
-internetGateway=$(aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text)
+internetGateway=$(aws ec2 create-internet-gateway --tag-specifications ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task3-igw}] --query InternetGateway.InternetGatewayId --output text)
 
 # Attach gateway to VPC
 aws ec2 attach-internet-gateway --vpc-id "$VPC" --internet-gateway-id "$internetGateway"
@@ -35,6 +35,14 @@ aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$PubRoute
 
 # Apply Private route table to subnet1
 aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$PrivRouteTable" --query 'AssociationState.State' --output text
+
+
+#############
+#
+#  Load balancer required
+#
+#############
+
 
 # Obtain public IP address on launch
 aws ec2 modify-subnet-attribute --subnet-id "$subnet0" --map-public-ip-on-launch
@@ -61,18 +69,24 @@ privateHostSG=$(aws ec2 create-security-group --group-name privateHost-sg --desc
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 22 --cidr 0.0.0.0/0 --query 'Return' --output text
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 80 --cidr 0.0.0.0/0 --query 'Return' --output text
 
-# Allow SSH from private host
+# Allow SSH from private subnet
 aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 22 --source-group "$webAppSG"  --query 'Return' --output text
 aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 3306 --source-group "$webAppSG"  --query 'Return' --output text
 
-# Create EC2 Instance in public subnet - Uses golden image created in task 1
-pubEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --query Instances[].InstanceId --output text)
+# Create EC2 Instance in public subnet "Public Host1" - Uses golden image created in task 1
+pubHost1ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Public Host1}]' --query Instances[].InstanceId --output text)
+
+# Create EC2 Instance in public subnet "Public Host2" - Uses golden image created in task 1
+pubHost2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Public Host2}]' --query Instances[].InstanceId --output text)
 
 # Create EC2 Instance in private subnet - Uses golden image created in task 1
-privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --query Instances[].InstanceId --output text)
+privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Private Host1}]' --query Instances[].InstanceId --output text)
 
 # Determine public IP address of EC2 instance
-publicIP=$(aws ec2 describe-instances --instance-ids "$pubEC2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
+publicIP1=$(aws ec2 describe-instances --instance-ids "$pubHost1ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
+
+# Determine public IP address of EC2 instance
+publicIP2=$(aws ec2 describe-instances --instance-ids "$pubHost2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
 
 # Determine private IP address of EC2 instance
 privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reservations[].Instances[].PrivateIpAddress  --output text)
@@ -80,7 +94,8 @@ privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reser
 # Script complete message
 greenText='\033[0;32m'
 NC='\033[0m' # No Color
-echo "Connect to pubilc EC2 instance using the command below"
-echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP ${NC}\n"
+echo "Connect to pubilc EC2 instances using the command below"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP1 ${NC}\n"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP2 ${NC}\n"
 echo "Connect to private EC2 instance using the command below"
 echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$privateIP ${NC}\n"
