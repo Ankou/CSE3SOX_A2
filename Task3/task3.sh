@@ -11,6 +11,7 @@ VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'Resour
 # Create subnets in the new VPC
 subnet0=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.0.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet0 Public}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
 subnet1=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.1.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet1 Private}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
+subnet2=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.2.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet2 Public}]' --availability-zone us-east-1b --query Subnet.SubnetId --output text)
 
 # Determine the route table id for the VPC
 PubRouteTable=$(aws ec2 describe-route-tables --query "RouteTables[?VpcId == '$VPC'].RouteTableId" --output text)
@@ -35,14 +36,6 @@ aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$PubRoute
 
 # Apply Private route table to subnet1
 aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$PrivRouteTable" --query 'AssociationState.State' --output text
-
-
-#############
-#
-#  Load balancer required
-#
-#############
-
 
 # Obtain public IP address on launch
 aws ec2 modify-subnet-attribute --subnet-id "$subnet0" --map-public-ip-on-launch
@@ -91,11 +84,33 @@ publicIP2=$(aws ec2 describe-instances --instance-ids "$pubHost2ID" --query Rese
 # Determine private IP address of EC2 instance
 privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reservations[].Instances[].PrivateIpAddress  --output text)
 
+#############
+#
+# Create Elastic Load Balancer
+elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0" "$subnet2" --security-groups webAppSG --query LoadBalancers[].LoadBalancerArn --output text)
+
+# Create target group for public EC2 instances
+targetGroupARN=$(aws elbv2 create-target-group --name Task3-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
+
+# Add public EC2 instances to target group
+aws elbv2 register-targets --target-group-arn "$targetGroupARN" --targets Id=$pubHost1ID Id=$pubHost2ID
+
+# Create listener on load balancer
+aws elbv2 create-listener --load-balancer-arn "$elbv2ARN" --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$targetGroupARN
+
+# Determine DNS name
+webURL=$(aws elbv2 describe-load-balancers --load-balancer-arns "$elbv2ARN" --query LoadBalancers[].DNSName --output text)
+
+#
+#############
+
 # Script complete message
 greenText='\033[0;32m'
 NC='\033[0m' # No Color
 echo "Connect to pubilc EC2 instances using the command below"
-echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP1 ${NC}\n"
-echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP2 ${NC}\n"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP1 ${NC}"
+echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP2 ${NC}\n"
 echo "Connect to private EC2 instance using the command below"
 echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$privateIP ${NC}\n"
+echo "Connect to website using the url below"
+echo -e "\n${greenText}\t\t http://"$elbv2ARN" ${NC}\n"
