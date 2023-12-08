@@ -22,7 +22,7 @@ aws ec2 create-tags --resources $PubRouteTable --tags 'Key=Name,Value=Public rou
 PrivRouteTable=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table}]' --query RouteTable.RouteTableId --output text)
 
 # Create Internet Gateway
-internetGateway=$(aws ec2 create-internet-gateway --tag-specifications ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task3-igw}] --query InternetGateway.InternetGatewayId --output text)
+internetGateway=$(aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task3-igw}]' --query InternetGateway.InternetGatewayId --output text)
 
 # Attach gateway to VPC
 aws ec2 attach-internet-gateway --vpc-id "$VPC" --internet-gateway-id "$internetGateway"
@@ -60,10 +60,10 @@ aws ec2 create-key-pair --key-name CSE3SOX-A2-key-pair --query 'KeyMaterial' --o
 chmod 400 ~/.ssh/CSE3SOX-A2-key-pair.pem
 
 # Create Security Group for public host
-webAppSG=$(aws ec2 create-security-group --group-name webApp-sg --description "Security group for host in public subnet" --vpc-id "$VPC" --query 'GroupId' --output text)
-
+webAppSG=$(aws ec2 create-security-group --group-name webApp-sg --description "Security group for host in public subnet" --vpc-id "$VPC" --tag-specifications 'ResourceType=security-group,Tags=[{Key=Name,Value=Public HostSG}]' --query 'GroupId' --output text)
+ 
 # Create Security Group for private host
-privateHostSG=$(aws ec2 create-security-group --group-name privateHost-sg --description "Security group for host in private subnet" --vpc-id "$VPC" --query 'GroupId' --output text)
+privateHostSG=$(aws ec2 create-security-group --group-name privateHost-sg --description "Security group for host in private subnet" --vpc-id "$VPC" --tag-specifications 'ResourceType=security-group,Tags=[{Key=Name,Value=Private HostSG}]' --query 'GroupId' --output text)
 
 # Allow SSH and http traffic
 aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp --port 22 --cidr 0.0.0.0/0 --query 'Return' --output text
