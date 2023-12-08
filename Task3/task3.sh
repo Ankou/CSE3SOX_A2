@@ -92,11 +92,30 @@ elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0"
 # Create target group for public EC2 instances
 targetGroupARN=$(aws elbv2 create-target-group --name Task3-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
 
+# Get status of EC2 instances 
+pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" --query InstanceStatuses[].InstanceState.Name --output text)
+pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
+
+# Keep checking until they are running so we can add them to target group
+while ["$pubHost1Status" != "running"]
+do 
+  echo -e "\n\t\t Public host 1 status is $pubHost1Status waiting 10 seconds and trying again."
+  pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" --query InstanceStatuses[].InstanceState.Name --output text)
+  sleep 10
+done
+
+while ["$pubHost2Status" != "running"]
+do 
+  echo -e "\n\t\t Public host 2 status is $pubHost2Status waiting 10 seconds and trying again."
+  pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
+  sleep 10
+done
+
 # Add public EC2 instances to target group
 aws elbv2 register-targets --target-group-arn "$targetGroupARN" --targets Id=$pubHost1ID Id=$pubHost2ID
 
 # Create listener on load balancer
-aws elbv2 create-listener --load-balancer-arn "$elbv2ARN" --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$targetGroupARN
+listenerARN=$(aws elbv2 create-listener --load-balancer-arn "$elbv2ARN" --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$targetGroupARN --query Listeners[].ListenerArn --output text)
 
 # Determine DNS name
 webURL=$(aws elbv2 describe-load-balancers --load-balancer-arns "$elbv2ARN" --query LoadBalancers[].DNSName --output text)
@@ -113,4 +132,4 @@ echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$public
 echo "Connect to private EC2 instance using the command below"
 echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$privateIP ${NC}\n"
 echo "Connect to website using the url below"
-echo -e "\n${greenText}\t\t http://"$elbv2ARN" ${NC}\n"
+echo -e "\n${greenText}\t\t http://"$webURL" ${NC}\n"
