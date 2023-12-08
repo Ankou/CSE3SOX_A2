@@ -87,7 +87,7 @@ privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reser
 #############
 #
 # Create Elastic Load Balancer
-elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0" "$subnet2" --security-groups webAppSG --query LoadBalancers[].LoadBalancerArn --output text)
+elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0" "$subnet2" --security-groups "$webAppSG" --query LoadBalancers[].LoadBalancerArn --output text)
 
 # Create target group for public EC2 instances
 targetGroupARN=$(aws elbv2 create-target-group --name Task3-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
