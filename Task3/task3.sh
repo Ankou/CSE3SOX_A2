@@ -97,14 +97,14 @@ pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" -
 pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
 
 # Keep checking until they are running so we can add them to target group
-while ["$pubHost1Status" != "running"]
+while [ "$pubHost1Status" != "running" ]
 do 
   echo -e "\n\t\t Public host 1 status is $pubHost1Status waiting 10 seconds and trying again."
   pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" --query InstanceStatuses[].InstanceState.Name --output text)
   sleep 10
 done
 
-while ["$pubHost2Status" != "running"]
+while [ "$pubHost2Status" != "running" ]
 do 
   echo -e "\n\t\t Public host 2 status is $pubHost2Status waiting 10 seconds and trying again."
   pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
