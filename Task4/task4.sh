@@ -12,15 +12,22 @@ VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'Resour
 subnet0=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.0.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet0 Public}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
 subnet1=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.1.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet1 Private}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
 subnet2=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.2.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet2 Public}]' --availability-zone us-east-1b --query Subnet.SubnetId --output text)
+subnet3=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.3.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet3 Private}]' --availability-zone us-east-1b --query Subnet.SubnetId --output text)
 
 # Determine the route table id for the VPC
-PubRouteTable=$(aws ec2 describe-route-tables --query "RouteTables[?VpcId == '$VPC'].RouteTableId" --output text)
+PubRouteTableA=$(aws ec2 describe-route-tables --query "RouteTables[?VpcId == '$VPC'].RouteTableId" --output text)
 
 # Update tag
-aws ec2 create-tags --resources $PubRouteTable --tags 'Key=Name,Value=Public route Table'
+aws ec2 create-tags --resources $PubRouteTable --tags 'Key=Name,Value=Public route Table for Zone A'
 
-# Create private route table
-PrivRouteTable=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table}]' --query RouteTable.RouteTableId --output text)
+# Create private route table for Zone A
+PrivRouteTableA=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table for Zone A}]' --query RouteTable.RouteTableId --output text)
+
+# Create public route table for Zone B
+PubRouteTableB=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Public Route Table for Zone B}]' --query RouteTable.RouteTableId --output text)
+
+# Create Private route table for Zone B
+PrivRouteTableB=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table for Zone B}]' --query RouteTable.RouteTableId --output text)
 
 # Create Internet Gateway
 internetGateway=$(aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task3-igw}]' --query InternetGateway.InternetGatewayId --output text)
@@ -29,16 +36,20 @@ internetGateway=$(aws ec2 create-internet-gateway --tag-specifications 'Resource
 aws ec2 attach-internet-gateway --vpc-id "$VPC" --internet-gateway-id "$internetGateway"
 
 # Create default route to Internet Gateway
-aws ec2 create-route --route-table-id "$PubRouteTable" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway" --query 'Return' --output text
+aws ec2 create-route --route-table-id "$PubRouteTableA" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway" --query 'Return' --output text
+aws ec2 create-route --route-table-id "$PubRouteTableB" --destination-cidr-block 0.0.0.0/0 --gateway-id "$internetGateway" --query 'Return' --output text
 
-# Apply Public route table to subnet0
-aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$PubRouteTable" --query 'AssociationState.State' --output text
+# Apply Public route table to subnet0 and subnet2
+aws ec2 associate-route-table --subnet-id "$subnet0" --route-table-id "$PubRouteTableA" --query 'AssociationState.State' --output text
+aws ec2 associate-route-table --subnet-id "$subnet2" --route-table-id "$PubRouteTableB" --query 'AssociationState.State' --output text
 
-# Apply Private route table to subnet1
-aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$PrivRouteTable" --query 'AssociationState.State' --output text
+# Apply Private route table to subnet1 and subnet 3
+aws ec2 associate-route-table --subnet-id "$subnet1" --route-table-id "$PrivRouteTableA" --query 'AssociationState.State' --output text
+aws ec2 associate-route-table --subnet-id "$subnet3" --route-table-id "$PrivRouteTableB" --query 'AssociationState.State' --output text
 
 # Obtain public IP address on launch
 aws ec2 modify-subnet-attribute --subnet-id "$subnet0" --map-public-ip-on-launch
+aws ec2 modify-subnet-attribute --subnet-id "$subnet2" --map-public-ip-on-launch
 
 # Create.ssh folder if it doesn't exist
 if [ ! -d ~/.ssh/ ]; then
@@ -66,23 +77,29 @@ aws ec2 authorize-security-group-ingress --group-id "$webAppSG" --protocol tcp -
 aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 22 --source-group "$webAppSG"  --query 'Return' --output text
 aws ec2 authorize-security-group-ingress --group-id "$privateHostSG" --protocol tcp --port 3306 --source-group "$webAppSG"  --query 'Return' --output text
 
-# Create EC2 Instance in public subnet "Public Host1" - Uses golden image created in task 1
-pubHost1ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Public Host1}]' --query Instances[].InstanceId --output text)
+# Create EC2 Instances in public subnet in zone A "Host-a1 & Host-a2" - Uses golden image created in task 1
+host_a1=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a1}]' --query Instances[].InstanceId --output text)
+host_a2=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a2}]' --query Instances[].InstanceId --output text)
 
-# Create EC2 Instance in public subnet "Public Host2" - Uses golden image created in task 1
-pubHost2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet0" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Public Host2}]' --query Instances[].InstanceId --output text)
+# Create EC2 Instance in private subnet in zone A "host-a3" - Uses golden image created in task 1
+host_a3=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a3}]' --query Instances[].InstanceId --output text)
 
-# Create EC2 Instance in private subnet - Uses golden image created in task 1
-privEC2ID=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Private Host1}]' --query Instances[].InstanceId --output text)
+# Create EC2 Instances in public subnet in zone B "Host-b1 & Host-b2" - Uses golden image created in task 1
+host_b1=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a1}]' --query Instances[].InstanceId --output text)
+host_b2=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a2}]' --query Instances[].InstanceId --output text)
+
+# Create EC2 Instance in private subnet in zone B "host-b3" - Uses golden image created in task 1
+host_b3=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet3" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a3}]' --query Instances[].InstanceId --output text)
 
 # Determine public IP address of EC2 instance
-publicIP1=$(aws ec2 describe-instances --instance-ids "$pubHost1ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
-
-# Determine public IP address of EC2 instance
-publicIP2=$(aws ec2 describe-instances --instance-ids "$pubHost2ID" --query Reservations[].Instances[].PublicIpAddress  --output text)
+host_a1_PubIP=$(aws ec2 describe-instances --instance-ids "$host_a1" --query Reservations[].Instances[].PublicIpAddress  --output text)
+host_a2_PubIP=$(aws ec2 describe-instances --instance-ids "$host_a2" --query Reservations[].Instances[].PublicIpAddress  --output text)
+host_b1_PubIP=$(aws ec2 describe-instances --instance-ids "$host_b1" --query Reservations[].Instances[].PublicIpAddress  --output text)
+host_b2_PubIP=$(aws ec2 describe-instances --instance-ids "$host_b2" --query Reservations[].Instances[].PublicIpAddress  --output text)
 
 # Determine private IP address of EC2 instance
-privateIP=$(aws ec2 describe-instances --instance-ids "$privEC2ID" --query Reservations[].Instances[].PrivateIpAddress  --output text)
+host_a3_PrivIP=$(aws ec2 describe-instances --instance-ids "$host_a3" --query Reservations[].Instances[].PrivateIpAddress  --output text)
+host_b3_PrivIP=$(aws ec2 describe-instances --instance-ids "$host_b3" --query Reservations[].Instances[].PrivateIpAddress  --output text)
 
 #############
 #

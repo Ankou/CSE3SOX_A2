@@ -3,8 +3,10 @@
 # Switch to root
 sudo su -
 
-# Update http to see Host
-sed -i 's/Original/Public host 1/g' /var/www/html/login.php
+# Update html to see Host
+# This will confirm both servers are being used in the load balancer
+sed -i 's/Original/Public host 2/g' /var/www/html/login.php
+
 
 # Disable mariadb service
 systemctl stop mariadb
@@ -12,14 +14,3 @@ systemctl disable mariadb
 
 # Update the validation.php file
 sed -i 's/localhost/172.16.1.82/g' /var/www/html/validation.php 
-
-
-### https://docs.aws.amazon.com/elasticloadbalancing/latest/application/tutorial-application-load-balancer-cli.html
-aws elbv2 create-load-balancer --name Task3-elb2 --subnets subnet-06349bffd2ea42c6b subnet-0a2072b5e49265c5a --SecurityGroups sg-086c8f488c7be8e1a
-
-aws elbv2 create-target-group --name Task3-web-targets --protocol HTTP --port 80 --vpc-id vpc-0765356758596e92d --ip-address-type ipv4
-
-aws elbv2 register-targets --target-group-arn arn:aws:elasticloadbalancing:us-east-1:966189010326:targetgroup/Task3-web-targets/34b617f0d78727c1 --targets Id=i-0c423e3f8e47e3e2f Id=i-04ee6b0ff4f2357c2
-
-aws elbv2 create-listener --load-balancer-arn arn:aws:elasticloadbalancing:us-east-1:966189010326:loadbalancer/app/Task3-elb/f2689ed98ff133af --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=arn:aws:elasticloadbalancing:us-east-1:966189010326:targetgroup/Task3-web-targets/34b617f0d78727c1
-
