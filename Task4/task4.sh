@@ -18,7 +18,7 @@ subnet3=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.3.0/24 --tag
 PubRouteTableA=$(aws ec2 describe-route-tables --query "RouteTables[?VpcId == '$VPC'].RouteTableId" --output text)
 
 # Update tag
-aws ec2 create-tags --resources $PubRouteTable --tags 'Key=Name,Value=Public route Table for Zone A'
+aws ec2 create-tags --resources $PubRouteTableA --tags 'Key=Name,Value=Public route Table for Zone A'
 
 # Create private route table for Zone A
 PrivRouteTableA=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table for Zone A}]' --query RouteTable.RouteTableId --output text)
@@ -85,11 +85,11 @@ host_a2=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --ins
 host_a3=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet1" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a3}]' --query Instances[].InstanceId --output text)
 
 # Create EC2 Instances in public subnet in zone B "Host-b1 & Host-b2" - Uses golden image created in task 1
-host_b1=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a1}]' --query Instances[].InstanceId --output text)
-host_b2=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a2}]' --query Instances[].InstanceId --output text)
+host_b1=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-b1}]' --query Instances[].InstanceId --output text)
+host_b2=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair --security-group-ids "$webAppSG" --subnet-id "$subnet2" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-b2}]' --query Instances[].InstanceId --output text)
 
 # Create EC2 Instance in private subnet in zone B "host-b3" - Uses golden image created in task 1
-host_b3=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet3" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-a3}]' --query Instances[].InstanceId --output text)
+host_b3=$(aws ec2 run-instances --image-id ami-08a85687358dd743b --count 1 --instance-type t2.micro --key-name CSE3SOX-A2-key-pair  --security-group-ids "$privateHostSG" --subnet-id "$subnet3" --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=host-b3}]' --query Instances[].InstanceId --output text)
 
 # Determine public IP address of EC2 instance
 host_a1_PubIP=$(aws ec2 describe-instances --instance-ids "$host_a1" --query Reservations[].Instances[].PublicIpAddress  --output text)
@@ -107,29 +107,45 @@ host_b3_PrivIP=$(aws ec2 describe-instances --instance-ids "$host_b3" --query Re
 elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0" "$subnet2" --security-groups "$webAppSG" --query LoadBalancers[].LoadBalancerArn --output text)
 
 # Create target group for public EC2 instances
-targetGroupARN=$(aws elbv2 create-target-group --name Task3-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
+targetGroupARN=$(aws elbv2 create-target-group --name Task4-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
 
 # Get status of EC2 instances 
-pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" --query InstanceStatuses[].InstanceState.Name --output text)
-pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
+host_a1_status=$(aws ec2 describe-instance-status --instance-ids "$host_a1" --query InstanceStatuses[].InstanceState.Name --output text)
+host_a2_status=$(aws ec2 describe-instance-status --instance-ids "$host_a2" --query InstanceStatuses[].InstanceState.Name --output text)
+host_b1_status=$(aws ec2 describe-instance-status --instance-ids "$host_b1" --query InstanceStatuses[].InstanceState.Name --output text)
+host_b2_status=$(aws ec2 describe-instance-status --instance-ids "$host_b2" --query InstanceStatuses[].InstanceState.Name --output text)
 
 # Keep checking until they are running so we can add them to target group
-while [ "$pubHost1Status" != "running" ]
+while [ "$host_a1_status" != "running" ]
 do 
-  echo -e "\n\t\t Public host 1 status is $pubHost1Status waiting 10 seconds and trying again."
-  pubHost1Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost1ID" --query InstanceStatuses[].InstanceState.Name --output text)
+  echo -e "\n\t\t Host-a1 status is not runnung waiting 10 seconds and trying again."
+  host_a1_status=$(aws ec2 describe-instance-status --instance-ids "$host_a1" --query InstanceStatuses[].InstanceState.Name --output text)
   sleep 10
 done
 
-while [ "$pubHost2Status" != "running" ]
+while [ "$host_a2_status" != "running" ]
 do 
-  echo -e "\n\t\t Public host 2 status is $pubHost2Status waiting 10 seconds and trying again."
-  pubHost2Status=$(aws ec2 describe-instance-status --instance-ids "$pubHost2ID" --query InstanceStatuses[].InstanceState.Name --output text)
+  echo -e "\n\t\t Host-a2 status is not runnung waiting 10 seconds and trying again."
+  host_a2_status=$(aws ec2 describe-instance-status --instance-ids "$host_a2" --query InstanceStatuses[].InstanceState.Name --output text)
+  sleep 10
+done
+
+while [ "$host_b1_status" != "running" ]
+do 
+  echo -e "\n\t\t Host-b1 status is not runnung waiting 10 seconds and trying again."
+  host_b1_status=$(aws ec2 describe-instance-status --instance-ids "$host_b1" --query InstanceStatuses[].InstanceState.Name --output text)
+  sleep 10
+done
+
+while [ "$host_b2_status" != "running" ]
+do 
+  echo -e "\n\t\t Host-b2 status is not runnung waiting 10 seconds and trying again."
+  host_b2_status=$(aws ec2 describe-instance-status --instance-ids "$host_b2" --query InstanceStatuses[].InstanceState.Name --output text)
   sleep 10
 done
 
 # Add public EC2 instances to target group
-aws elbv2 register-targets --target-group-arn "$targetGroupARN" --targets Id=$pubHost1ID Id=$pubHost2ID
+aws elbv2 register-targets --target-group-arn "$targetGroupARN" --targets Id=$host_a1 Id=$host_a2 Id=$host_b1 Id=$host_b2
 
 # Create listener on load balancer
 listenerARN=$(aws elbv2 create-listener --load-balancer-arn "$elbv2ARN" --protocol HTTP --port 80 --default-actions Type=forward,TargetGroupArn=$targetGroupARN --query Listeners[].ListenerArn --output text)
@@ -144,9 +160,12 @@ webURL=$(aws elbv2 describe-load-balancers --load-balancer-arns "$elbv2ARN" --qu
 greenText='\033[0;32m'
 NC='\033[0m' # No Color
 echo "Connect to pubilc EC2 instances using the command below"
-echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP1 ${NC}"
-echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$publicIP2 ${NC}\n"
-echo "Connect to private EC2 instance using the command below"
-echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$privateIP ${NC}\n"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_a1_PubIP ${NC}"
+echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_a2_PubIP ${NC}"
+echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_b1_PubIP ${NC}"
+echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_b2_PubIP ${NC}\n"
+echo "Connect to private EC2 instances using the command below"
+echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_a3_PrivIP ${NC}"
+echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_b3_PrivIP ${NC}\n"
 echo "Connect to website using the url below"
 echo -e "\n${greenText}\t\t http://"$webURL" ${NC}\n"
