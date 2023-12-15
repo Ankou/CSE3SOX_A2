@@ -6,7 +6,7 @@ logFile=~/$0-$runDate
 echo "Script Starting @ $runDate" > $logFile
 
 # Create VPC
-VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=Task3VPC}]' --query Vpc.VpcId --output text)
+VPC=$(aws ec2 create-vpc --cidr-block 172.16.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=Task4VPC}]' --query Vpc.VpcId --output text)
 
 # Create subnets in the new VPC
 subnet0=$(aws ec2 create-subnet --vpc-id "$VPC" --cidr-block 172.16.0.0/24 --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=Subnet0 Public}]' --availability-zone us-east-1a --query Subnet.SubnetId --output text)
@@ -30,7 +30,7 @@ PubRouteTableB=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications
 PrivRouteTableB=$(aws ec2 create-route-table --vpc-id "$VPC" --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=Private Route Table for Zone B}]' --query RouteTable.RouteTableId --output text)
 
 # Create Internet Gateway
-internetGateway=$(aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task3-igw}]' --query InternetGateway.InternetGatewayId --output text)
+internetGateway=$(aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=Task4-igw}]' --query InternetGateway.InternetGatewayId --output text)
 
 # Attach gateway to VPC
 aws ec2 attach-internet-gateway --vpc-id "$VPC" --internet-gateway-id "$internetGateway"
@@ -104,7 +104,7 @@ host_b3_PrivIP=$(aws ec2 describe-instances --instance-ids "$host_b3" --query Re
 #############
 #
 # Create Elastic Load Balancer
-elbv2ARN=$(aws elbv2 create-load-balancer --name Task3-elb3 --subnets "$subnet0" "$subnet2" --security-groups "$webAppSG" --query LoadBalancers[].LoadBalancerArn --output text)
+elbv2ARN=$(aws elbv2 create-load-balancer --name Task4-elb3 --subnets "$subnet0" "$subnet2" --security-groups "$webAppSG" --query LoadBalancers[].LoadBalancerArn --output text)
 
 # Create target group for public EC2 instances
 targetGroupARN=$(aws elbv2 create-target-group --name Task4-web-targets --protocol HTTP --port 80 --vpc-id "$VPC" --ip-address-type ipv4 --query TargetGroups[].TargetGroupArn --output text)
