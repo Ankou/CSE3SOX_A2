@@ -159,7 +159,7 @@ webURL=$(aws elbv2 describe-load-balancers --load-balancer-arns "$elbv2ARN" --qu
 # Script complete message
 greenText='\033[0;32m'
 NC='\033[0m' # No Color
-echo "Connect to pubilc EC2 instances using the command below"
+echo "Connect to public EC2 instances using the command below"
 echo -e "\n${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_a1_PubIP ${NC}"
 echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_a2_PubIP ${NC}"
 echo -e "${greenText}\t\t ssh -i ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@$host_b1_PubIP ${NC}"

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Switch to root
+sudo su -
+
+# Update html to see Host
+# This will confirm both servers are being used in the load balancer
+sed -i 's/Original/HOST-A2/g' /var/www/html/login.php
+
+
+# Disable mariadb service
+systemctl stop mariadb
+systemctl disable mariadb
+
+# Update the validation.php file to use database server in Zone A
+sed -i 's/localhost/172.16.1.166/g' /var/www/html/validation.php 
+
+# Restart httpd
+systemctl restart httpd

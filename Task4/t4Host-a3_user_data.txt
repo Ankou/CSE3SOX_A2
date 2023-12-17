@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Switch to root
+sudo su -
+
+# Disable httpd service
+systemctl stop httpd
+systemctl disable httpd
+
+# Create a user that only exists on the private host
+mysql -u root -proot -D user_accounts  -e 'INSERT INTO `user` VALUES ("rfield77","Ricky","Field","Host-b3","Australia","rfield77");' 

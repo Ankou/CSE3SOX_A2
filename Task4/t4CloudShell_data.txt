@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# copy the local private key to public server so you can jump to private server
+scp -i ~/.ssh/CSE3SOX-A2-key-pair.pem  ~/.ssh/CSE3SOX-A2-key-pair.pem ec2-user@52.90.48.48:~/.ssh/CSE3SOX-A2-key-pair.pem
+
